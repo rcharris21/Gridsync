@@ -194,7 +194,7 @@ export const temperatureFactors = {
 export const getConductorOptions = () => {
   return Object.keys(conductorData).map(name => ({
     value: name,
-    label: `${name} - ${conductorData[name].description}`,
+    label: name,
     type: conductorData[name].type,
     size: conductorData[name].size
   }));
@@ -206,6 +206,6 @@ export const getConductorsByType = (type) => {
     .filter(name => conductorData[name].type === type)
     .map(name => ({
       value: name,
-      label: `${name} - ${conductorData[name].description}`
+      label: name
     }));
 }; 
