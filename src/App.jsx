@@ -16,7 +16,8 @@ function App() {
     nominalVoltage: 12.47,
     availableFaultCurrent: 5000,
     defaultConductor: 'ACSR 1/0',
-    temperature: 75
+    temperature: 75,
+    coordinationPhilosophy: 'fuse-saving'
   });
   
   const [devices, setDevices] = useState([]);
@@ -82,12 +83,27 @@ function App() {
     }
   };
 
+  const handleSubstationChange = (newSubstation) => {
+    // Check if coordination philosophy changed and devices exist
+    if (substation.coordinationPhilosophy !== newSubstation.coordinationPhilosophy && devices.length > 0) {
+      const confirmed = window.confirm(
+        'Changing coordination philosophy may affect existing device settings. Re-evaluate coordination?'
+      );
+      if (!confirmed) {
+        return; // Don't update if user cancels
+      }
+    }
+    
+    setSubstation(newSubstation);
+  };
+
   const newStudy = () => {
     setSubstation({
       nominalVoltage: 12.47,
       availableFaultCurrent: 5000,
       defaultConductor: 'ACSR 1/0',
-      temperature: 75
+      temperature: 75,
+      coordinationPhilosophy: 'fuse-saving'
     });
     setDevices([]);
     setWarnings([]);
@@ -110,7 +126,7 @@ function App() {
           <div className="lg:col-span-1 space-y-6">
             <SubstationForm 
               substation={substation}
-              onSubstationChange={setSubstation}
+              onSubstationChange={handleSubstationChange}
             />
             <DeviceForm 
               onAddDevice={addDevice}

@@ -69,6 +69,23 @@ const SubstationForm = ({ substation, onSubstationChange }) => {
 
         <div>
           <label className="block text-sm font-medium text-gray-200 mb-1">
+            Coordination Philosophy
+          </label>
+          <select
+            value={substation.coordinationPhilosophy || 'fuse-saving'}
+            onChange={(e) => handleChange('coordinationPhilosophy', e.target.value)}
+            className="input-field"
+          >
+            <option value="fuse-saving">Fuse-Saving</option>
+            <option value="fuse-blowing">Fuse-Blowing</option>
+          </select>
+          <p className="text-xs text-gray-400 mt-1">
+            This determines whether upstream protection is delayed to allow downstream fuses to operate (fuse-saving), or whether upstream devices trip quickly to protect fuses (fuse-blowing).
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-200 mb-1">
             Ambient Temperature (°C)
           </label>
           <select

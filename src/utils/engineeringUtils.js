@@ -129,92 +129,176 @@ export const calculateOperatingTime = (device, current) => {
 // Generate specific recommendations for coordination issues
 export const generateRecommendations = (warning, devices, substation) => {
   const recommendations = [];
+  const philosophy = substation.coordinationPhilosophy || 'fuse-saving';
   
   if (warning.type === 'miscoordination') {
     const [upstreamDevice, downstreamDevice] = warning.devices;
     
-    // Device-specific recommendations
+    // Device-specific recommendations based on coordination philosophy
     if (upstreamDevice.deviceType === 'recloser' && downstreamDevice.deviceType === 'fuse') {
-      recommendations.push({
-        type: 'time_dial',
-        message: `Increase ${upstreamDevice.name} time dial from ${upstreamDevice.timeDial || 1} to ${Math.min((upstreamDevice.timeDial || 1) * 1.5, 10)}`,
-        action: 'increase_time_dial',
-        device: upstreamDevice,
-        newValue: Math.min((upstreamDevice.timeDial || 1) * 1.5, 10)
-      });
-      
-      recommendations.push({
-        type: 'curve_selection',
-        message: `Consider changing ${upstreamDevice.name} curve from ${upstreamDevice.curveType} to a slower curve (e.g., IEEE D or E)`,
-        action: 'change_curve',
-        device: upstreamDevice,
-        suggestedCurves: ['IEEE D', 'IEEE E', 'ANSI Very Inverse']
-      });
-    }
-    
-    if (upstreamDevice.deviceType === 'recloser' && downstreamDevice.deviceType === 'recloser') {
-      recommendations.push({
-        type: 'time_dial',
-        message: `Increase ${upstreamDevice.name} time dial from ${upstreamDevice.timeDial || 1} to ${Math.min((upstreamDevice.timeDial || 1) * 1.3, 8)}`,
-        action: 'increase_time_dial',
-        device: upstreamDevice,
-        newValue: Math.min((upstreamDevice.timeDial || 1) * 1.3, 8)
-      });
-    }
-    
-    if (downstreamDevice.deviceType === 'fuse') {
-      // Suggest fuse downgrade for better coordination
-      const currentFuse = downstreamDevice.curveType;
-      const fuseUpgrades = {
-        'S&C K-25': 'S&C K-35',
-        'S&C K-35': 'S&C K-50', 
-        'S&C K-50': 'S&C K-75',
-        'S&C K-75': 'S&C K-100',
-        'Cooper K-25': 'Cooper K-35',
-        'Cooper K-35': 'Cooper K-50',
-        'Cooper K-50': 'Cooper K-75',
-        'Cooper K-75': 'Cooper K-100'
-      };
-      
-      if (fuseUpgrades[currentFuse]) {
+      if (philosophy === 'fuse-saving') {
+        // Fuse-saving: Delay upstream to allow fuse operation
         recommendations.push({
-          type: 'fuse_upgrade',
-          message: `Consider upgrading ${downstreamDevice.name} from ${currentFuse} to ${fuseUpgrades[currentFuse]} for better coordination`,
-          action: 'change_fuse',
-          device: downstreamDevice,
-          newFuse: fuseUpgrades[currentFuse]
+          type: 'time_dial',
+          message: `Increase ${upstreamDevice.name} time dial from ${upstreamDevice.timeDial || 1} to ${Math.min((upstreamDevice.timeDial || 1) * 1.8, 10)} for fuse-saving coordination`,
+          action: 'increase_time_dial',
+          device: upstreamDevice,
+          newValue: Math.min((upstreamDevice.timeDial || 1) * 1.8, 10)
+        });
+        
+        recommendations.push({
+          type: 'curve_selection',
+          message: `Consider changing ${upstreamDevice.name} curve to a slower curve (IEEE E or F) for fuse-saving coordination`,
+          action: 'change_curve',
+          device: upstreamDevice,
+          suggestedCurves: ['IEEE E', 'IEEE F', 'ANSI Very Inverse']
+        });
+      } else {
+        // Fuse-blowing: Fast upstream operation to protect fuses
+        recommendations.push({
+          type: 'time_dial',
+          message: `Decrease ${upstreamDevice.name} time dial from ${upstreamDevice.timeDial || 1} to ${Math.max((upstreamDevice.timeDial || 1) * 0.7, 0.5)} for fuse-blowing coordination`,
+          action: 'decrease_time_dial',
+          device: upstreamDevice,
+          newValue: Math.max((upstreamDevice.timeDial || 1) * 0.7, 0.5)
+        });
+        
+        recommendations.push({
+          type: 'curve_selection',
+          message: `Consider changing ${upstreamDevice.name} curve to a faster curve (IEEE C or D) for fuse-blowing coordination`,
+          action: 'change_curve',
+          device: upstreamDevice,
+          suggestedCurves: ['IEEE C', 'IEEE D', 'ANSI Moderately Inverse']
         });
       }
     }
     
+    if (upstreamDevice.deviceType === 'recloser' && downstreamDevice.deviceType === 'recloser') {
+      if (philosophy === 'fuse-saving') {
+        // For recloser-to-recloser, still maintain coordination but with philosophy context
+        recommendations.push({
+          type: 'time_dial',
+          message: `Increase ${upstreamDevice.name} time dial from ${upstreamDevice.timeDial || 1} to ${Math.min((upstreamDevice.timeDial || 1) * 1.4, 8)} for fuse-saving coordination`,
+          action: 'increase_time_dial',
+          device: upstreamDevice,
+          newValue: Math.min((upstreamDevice.timeDial || 1) * 1.4, 8)
+        });
+      } else {
+        // Fuse-blowing: Faster coordination for reclosers too
+        recommendations.push({
+          type: 'time_dial',
+          message: `Adjust ${upstreamDevice.name} time dial from ${upstreamDevice.timeDial || 1} to ${Math.min((upstreamDevice.timeDial || 1) * 1.2, 6)} for fuse-blowing coordination`,
+          action: 'adjust_time_dial',
+          device: upstreamDevice,
+          newValue: Math.min((upstreamDevice.timeDial || 1) * 1.2, 6)
+        });
+      }
+    }
+    
+    if (downstreamDevice.deviceType === 'fuse') {
+      const currentFuse = downstreamDevice.curveType;
+      
+      if (philosophy === 'fuse-saving') {
+        // Fuse-saving: Allow fuses to operate, suggest appropriate sizing
+        const fuseUpgrades = {
+          'S&C K-25': 'S&C K-35',
+          'S&C K-35': 'S&C K-50', 
+          'S&C K-50': 'S&C K-75',
+          'S&C K-75': 'S&C K-100',
+          'Cooper K-25': 'Cooper K-35',
+          'Cooper K-35': 'Cooper K-50',
+          'Cooper K-50': 'Cooper K-75',
+          'Cooper K-75': 'Cooper K-100'
+        };
+        
+        if (fuseUpgrades[currentFuse]) {
+          recommendations.push({
+            type: 'fuse_upgrade',
+            message: `Consider upgrading ${downstreamDevice.name} from ${currentFuse} to ${fuseUpgrades[currentFuse]} for fuse-saving coordination`,
+            action: 'change_fuse',
+            device: downstreamDevice,
+            newFuse: fuseUpgrades[currentFuse]
+          });
+        }
+      } else {
+        // Fuse-blowing: Protect fuses from damage, suggest conservative sizing
+        const fuseDowngrades = {
+          'S&C K-100': 'S&C K-75',
+          'S&C K-75': 'S&C K-50',
+          'S&C K-50': 'S&C K-35',
+          'S&C K-35': 'S&C K-25',
+          'Cooper K-100': 'Cooper K-75',
+          'Cooper K-75': 'Cooper K-50',
+          'Cooper K-50': 'Cooper K-35',
+          'Cooper K-35': 'Cooper K-25'
+        };
+        
+        if (fuseDowngrades[currentFuse]) {
+          recommendations.push({
+            type: 'fuse_downgrade',
+            message: `Consider downgrading ${downstreamDevice.name} from ${currentFuse} to ${fuseDowngrades[currentFuse]} for fuse-blowing coordination`,
+            action: 'change_fuse',
+            device: downstreamDevice,
+            newFuse: fuseDowngrades[currentFuse]
+          });
+        }
+      }
+    }
+    
     if (downstreamDevice.deviceType === 'TripSaver') {
-      recommendations.push({
-        type: 'tripsaver_settings',
-        message: `Review ${downstreamDevice.name} settings - TripSavers require specific coordination with upstream devices`,
-        action: 'review_tripsaver',
-        device: downstreamDevice
-      });
+      if (philosophy === 'fuse-saving') {
+        recommendations.push({
+          type: 'tripsaver_settings',
+          message: `Review ${downstreamDevice.name} settings for fuse-saving coordination - TripSavers should operate before upstream devices`,
+          action: 'review_tripsaver',
+          device: downstreamDevice
+        });
+      } else {
+        recommendations.push({
+          type: 'tripsaver_settings',
+          message: `Review ${downstreamDevice.name} settings for fuse-blowing coordination - Upstream devices should protect TripSavers`,
+          action: 'review_tripsaver',
+          device: downstreamDevice
+        });
+      }
     }
   }
   
   if (warning.type === 'tight_coordination') {
     const [upstreamDevice, downstreamDevice] = warning.devices;
     
-    recommendations.push({
-      type: 'margin_increase',
-      message: `Increase coordination margin between ${upstreamDevice.name} and ${downstreamDevice.name} by adjusting time dial or curve selection`,
-      action: 'increase_margin',
-      devices: [upstreamDevice, downstreamDevice]
-    });
+    if (philosophy === 'fuse-saving') {
+      recommendations.push({
+        type: 'margin_increase',
+        message: `Increase coordination margin between ${upstreamDevice.name} and ${downstreamDevice.name} for fuse-saving coordination`,
+        action: 'increase_margin',
+        devices: [upstreamDevice, downstreamDevice]
+      });
+    } else {
+      recommendations.push({
+        type: 'margin_increase',
+        message: `Review coordination margin between ${upstreamDevice.name} and ${downstreamDevice.name} for fuse-blowing coordination`,
+        action: 'review_margin',
+        devices: [upstreamDevice, downstreamDevice]
+      });
+    }
   }
   
-  // General recommendations based on device types
+  // General recommendations based on device types and philosophy
   if (recommendations.length === 0) {
-    recommendations.push({
-      type: 'general',
-      message: 'Review device settings and consider adjusting time dials or curve selection',
-      action: 'review_settings'
-    });
+    if (philosophy === 'fuse-saving') {
+      recommendations.push({
+        type: 'general',
+        message: 'Review device settings for fuse-saving coordination - consider slower curves and longer delays',
+        action: 'review_settings'
+      });
+    } else {
+      recommendations.push({
+        type: 'general',
+        message: 'Review device settings for fuse-blowing coordination - consider faster curves and shorter delays',
+        action: 'review_settings'
+      });
+    }
   }
   
   return recommendations;
@@ -300,6 +384,72 @@ export const generateCurveData = (device) => {
     line: { width: 2 },
     marker: { size: 4 }
   };
+};
+
+// Generate philosophy-aware device recommendations
+export const generatePhilosophyRecommendations = (substation, deviceType) => {
+  const philosophy = substation.coordinationPhilosophy || 'fuse-saving';
+  const recommendations = [];
+  
+  if (deviceType === 'recloser') {
+    if (philosophy === 'fuse-saving') {
+      recommendations.push({
+        type: 'curve_recommendation',
+        message: 'Recommended curves for fuse-saving: IEEE E, IEEE F, or ANSI Very Inverse',
+        curves: ['IEEE E', 'IEEE F', 'ANSI Very Inverse']
+      });
+      recommendations.push({
+        type: 'time_dial_recommendation',
+        message: 'Recommended time dial range: 2.0 - 8.0 for fuse-saving coordination',
+        range: [2.0, 8.0]
+      });
+    } else {
+      recommendations.push({
+        type: 'curve_recommendation',
+        message: 'Recommended curves for fuse-blowing: IEEE C, IEEE D, or ANSI Moderately Inverse',
+        curves: ['IEEE C', 'IEEE D', 'ANSI Moderately Inverse']
+      });
+      recommendations.push({
+        type: 'time_dial_recommendation',
+        message: 'Recommended time dial range: 0.5 - 3.0 for fuse-blowing coordination',
+        range: [0.5, 3.0]
+      });
+    }
+  }
+  
+  if (deviceType === 'fuse') {
+    if (philosophy === 'fuse-saving') {
+      recommendations.push({
+        type: 'fuse_recommendation',
+        message: 'Select fuses that can clear faults before upstream devices operate',
+        philosophy: 'fuse-saving'
+      });
+    } else {
+      recommendations.push({
+        type: 'fuse_recommendation',
+        message: 'Select conservative fuse sizes to prevent damage from upstream operation',
+        philosophy: 'fuse-blowing'
+      });
+    }
+  }
+  
+  if (deviceType === 'tripsaver') {
+    if (philosophy === 'fuse-saving') {
+      recommendations.push({
+        type: 'tripsaver_recommendation',
+        message: 'Configure TripSaver for single-shot operation to clear faults before upstream devices',
+        philosophy: 'fuse-saving'
+      });
+    } else {
+      recommendations.push({
+        type: 'tripsaver_recommendation',
+        message: 'Configure TripSaver with conservative settings to prevent damage from upstream operation',
+        philosophy: 'fuse-blowing'
+      });
+    }
+  }
+  
+  return recommendations;
 };
 
 // Calculate voltage drop along the line
